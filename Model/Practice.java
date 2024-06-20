@@ -1,0 +1,693 @@
+// the gml file must ne standard. which means an edge between an absolute edge, because
+// in yEd graph editor, a line which looks like a edge is actually not an edge, just a curve which overlap with a node.
+
+
+import java.awt.geom.GeneralPath;
+import java.awt.geom.Rectangle2D;
+import java.awt.geom.Line2D;
+import java.awt.geom.AffineTransform;
+import java.awt.*;
+import java.awt.Window;
+import java.awt.geom.*;
+import java.awt.RenderingHints;
+
+import java.awt.event.*;
+import java.awt.image.BufferedImage;
+import java.applet.*;
+import java.lang.*;
+import java.util.*;
+import java.io.*;
+
+import java.net.*;
+import java.awt.Component.*;
+
+import javax.swing.BorderFactory;
+import javax.swing.JFrame;
+import javax.swing.JMenuBar;
+import javax.swing.JPanel;
+
+import javax.swing.*;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
+import javax.swing.Timer;
+
+
+
+
+
+public class Practice extends JPanel implements KeyListener, MouseListener
+{
+
+     //numberOfImage must be decided before this code is compiled.
+     //also need to determine the path length range 3-5 or 3-6 see Prep class
+     //*************************************************************
+
+	 int       numberOfImage   = 10;     // this is the total number of images subjects will see half new, half old
+
+	 int         screenWidth   = 1024;
+	 int        screenHeight   = 768;
+
+
+	 //**************************************************************
+
+	 ArrayList<Path>   paths   = new ArrayList<Path>();
+
+     ArrayList<Graph> graphs   = read("practiceData.txt");
+
+     boolean breakTime = false;
+     boolean breakTime1 = false;
+
+
+     int[]  	    imgIndex   = new int[numberOfImage];
+
+     int   currentGraphIndex   = 0;
+
+	 String        subjectID   = "";       // = "03 ";    //03-- id
+
+     String        strDetail   = "";
+
+     long ST, ET;
+
+
+     //********************************
+     //constructor
+
+     public Practice()
+     {
+
+		 /*
+
+		addWindowListener( new WindowAdapter() {
+		   public void windowClosing( WindowEvent we ) {
+			 System.exit( 0 );
+		   }
+        } );
+
+        */
+
+        this.setFocusable(true);
+
+		addKeyListener(this);
+		addMouseListener(this);
+
+		//********************************************
+		//prepare paths
+
+        PrepToDraw.prepData(graphs, paths);
+
+        System.out.println("paths size= " + paths.size()+ "\n" );
+        System.out.println("graphs size= " + graphs.size()+ "\n" );
+
+		//*******************************************
+
+
+		//determine subject ID
+
+		try
+		{
+					BufferedReader in = new BufferedReader(new FileReader("practiceAnswer.txt"));
+					String strSubject="00 ";
+
+					String str;
+
+					while ((str = in.readLine()) != null)
+					{
+						str = str.trim();
+						if (str.length() ==0)
+						continue;
+
+						strSubject = str.substring(0,2);  // if I want 1234 for "1234567", then should .substring(0,4), not (0,3).
+					}
+
+					if (strSubject.substring(0,2).equals("Su"))
+						subjectID ="01";
+					else
+					{
+
+						int id = Integer.valueOf(strSubject.substring(0,2)).intValue()+1;
+						if (id > 9)
+						   subjectID += id;
+						else
+						   subjectID += "0" + id;
+					}
+
+		}
+		catch (IOException e)
+		{
+			   e.printStackTrace();
+		}
+
+		getOrder1();   //create imgIndex[]
+		currentGraphIndex = imgIndex[0];
+		System.out.println("graphIndex=" + currentGraphIndex);
+
+		//******************************************
+     }
+
+
+
+
+     int keyPressTimes = 0;
+
+
+     int sid;     //starting node ID
+     int eid;     //ending node ID
+
+     Path path;
+
+     long t1=0,t2=0, t3=0, t4=0;
+
+     public void paintComponent(Graphics g)
+     {
+		 super.paintComponent(g);
+
+		 Graphics2D g2d=(Graphics2D)g;
+         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+		 g2d.setPaint(Color.BLACK);
+
+
+         if (keyPressTimes == 0)  //show the first node as big blue
+         {
+			 if (breakTime == true)
+			 {
+				g2d.drawString("half done, press space to continue after 2 seconds", 300,180);
+
+				if (t1 == 0)
+					t1 = System.currentTimeMillis();
+
+				if (t2 !=0)
+					g2d.drawString(t2/1000 +" seconds to go", 300,210);
+			 }
+			 else if (breakTime1 == true)
+			 {
+				g2d.drawString("3/4 done, press space to continue after 5 seconds", 300,180);
+
+				if (t3 == 0)
+					t3 = System.currentTimeMillis();
+
+				if (t4 !=0)
+					g2d.drawString(t4/1000 +" seconds to go", 300,210);
+
+			 }
+			 else
+			 {
+				 g2d.setPaint(Color.RED);
+
+				 //System.out.println("paths size= " + paths.size()+ "\n" );
+
+				 path = paths.get(currentGraphIndex);
+
+				 sid = path.getStart();
+
+				 System.out.println("graphIndex=" + currentGraphIndex);
+
+
+				 Vertex v = graphs.get(currentGraphIndex).getVertex(sid);
+
+				 //g2d.fillOval( (int)(v.getX()- 5.0/2), (int)(v.getY() - 5.0/2), 10, 10 );
+				 g2d.fill(new Ellipse2D.Double(v.getX()-10*0.5, v.getY()-10*0.5,10,10));
+
+				 g2d.setPaint(Color.BLACK);
+			 }
+
+	     }
+         else if (keyPressTimes == 1)
+         {
+			 path  = paths.get(currentGraphIndex);
+
+			 //System.out.println("GID= " + currentGraphIndex +"  path= " + path.getPath()+ "\n" );
+			 //g2d.drawString("GID= " + currentGraphIndex +"  path= " + path.getPath(), 700,180);
+
+			 sid   = -1;
+			 eid   = -1;
+
+			 Graph graph = graphs.get(currentGraphIndex);
+
+			 graph.buildEdges();
+
+
+			 ArrayList<Edge> edges = graph.getEdges();
+
+			 for (int i=0; i<edges.size(); i++)
+			 {
+				 Edge e = edges.get(i);
+
+				 g2d.draw(e);
+			 }
+
+			 for (int i=0; i<graph.size(); i++)
+			 {
+
+				 if (i == path.getStart() || i == path.getEnd())
+				 {
+					 if (i == path.getStart())   sid = i;
+					 if (i == path.getEnd())     eid = i;
+
+					 g2d.setPaint(Color.RED);
+					 //g2d.fillOval( (int)(graph.getVertex(i).getX() - 5.0/2), (int)(graph.getVertex(i).getY() - 5.0/2), 7, 7 );
+					 g2d.fill(new Ellipse2D.Double(graph.getVertex(i).getX()-7*0.5, graph.getVertex(i).getY()-7*0.5,7,7));
+
+				     g2d.setPaint(Color.BLACK);
+				 }
+				 else
+
+				 	//g2d.fillOval( (int)(graph.getVertex(i).getX() - 5.0/2), (int)(graph.getVertex(i).getY() - 5.0/2), 4, 4 );
+				 	g2d.fill(new Ellipse2D.Double(graph.getVertex(i).getX()-5*0.5, graph.getVertex(i).getY()-5*0.5,5,5));
+			 }
+
+	     }
+	     else
+	     {
+			 g2d.drawString("Your answer:", 700,180);
+			 g2d.drawString(2+"", 700,200);
+			 g2d.drawString(3+"", 800,200);
+			 g2d.drawString(4+"", 900,200);
+			 g2d.drawString(5+"", 700,300);
+			 g2d.drawString(6+"", 800,300);
+			 g2d.drawString(7+"", 900,300);
+
+			 Rectangle2D.Double rec = new Rectangle2D.Double(700, 205, 80,40);
+			 g2d.draw(rec);
+			 rec = new Rectangle2D.Double(800, 205, 80,40);
+			 g2d.draw(rec);
+			 rec = new Rectangle2D.Double(900, 205, 80,40);
+			 g2d.draw(rec);
+			 rec = new Rectangle2D.Double(700, 305, 80,40);
+			 g2d.draw(rec);
+			 rec = new Rectangle2D.Double(800, 305, 80,40);
+			 g2d.draw(rec);
+			 rec = new Rectangle2D.Double(900, 305, 80,40);
+			 g2d.draw(rec);
+
+			 //************mental effort**************
+			 int scaleX;
+			 Line2D.Double line1;
+			 Line2D.Double line2;
+
+			 if (intInput !=0 )
+			 {
+				 g2d.drawString("How difficult is it for you to find the answer? please rate from 1 to 9:", 700,380);
+
+				 for (int i=0; i<9; i++)
+				 {
+					 scaleX = 700 + i*35;
+					 g2d.drawString((i+1)+"", scaleX,400);
+
+					 rec = new Rectangle2D.Double(scaleX, 405, 25,25);
+					 g2d.draw(rec);
+
+				 }
+
+				 g2d.drawString("1:extremely easy --------------------> extremely difficult:9", 700,450);
+
+				 //*******************response to mouse click******
+				 g2d.setPaint(Color.RED);
+
+				 for (int i=0; i<9; i++)
+				 {
+					 scaleX = 700 + i*35;
+					 if (intEffort == i+1)
+					 {
+						 Shape circle = new Ellipse2D.Float(scaleX+3, 408.0f, 18.0f, 18.0f);
+						 g2d.draw(circle);
+						 g2d.fill(circle);
+					 }
+				 }
+			 }
+
+			 if (intInput==2)
+			 {
+				 line1= new Line2D.Double(700,205,780,245);
+				 line2=new Line2D.Double(700,245,780,205);
+				 g2d.draw(line1);
+				 g2d.draw(line2);
+			 }
+			 if (intInput==3)
+			 {
+				 line1= new Line2D.Double(800,205,880,245);
+				 line2=new Line2D.Double(800,245,880,205);
+				 g2d.draw(line1);
+				 g2d.draw(line2);
+			 }
+			 if (intInput==4)
+			 {
+				 line1= new Line2D.Double(900,205,980,245);
+				 line2=new Line2D.Double(900,245,980,205);
+				 g2d.draw(line1);
+				 g2d.draw(line2);
+			 }
+			 if (intInput==5)
+			 {
+				 line1= new Line2D.Double(700,305,780,345);
+				 line2=new Line2D.Double(700,345,780,305);
+				 g2d.draw(line1);
+				 g2d.draw(line2);
+			 }
+			 if (intInput==6)
+			 {
+				 line1= new Line2D.Double(800,305,880,345);
+				 line2=new Line2D.Double(800,345,880,305);
+				 g2d.draw(line1);
+				 g2d.draw(line2);
+			 }
+			 if (intInput==7)
+			 {
+				 line1= new Line2D.Double(900,305,980,345);
+				 line2=new Line2D.Double(900,345,980,305);
+				 g2d.draw(line1);
+				 g2d.draw(line2);
+
+			 }
+			 g2d.setPaint(Color.BLUE);
+
+		 }
+
+		 //keyPressTimes ++;
+		 //g2d.drawString(keyPressTimes+"",150,150);
+		 //System.out.println(nodeStr +"\n"+edgeStr+"\n");
+	 }
+
+
+
+
+
+    // Mouse event handlers
+    int intInput=0;   //for answer
+    int intEffort=0;  //for mental effort
+    public void mouseClicked(MouseEvent e)
+    {
+		if (keyPressTimes ==2)
+		{
+			int posX = (int)e.getX();
+			int posY = (int)e.getY();
+
+			if (posX<780 && posX>700 && posY<245 && posY>205)
+			   intInput=2;
+			if (posX<880 && posX>800 && posY<245 && posY>205)
+			   intInput=3;
+			if (posX<980 && posX>900 && posY<245 && posY>205)
+			   intInput=4;
+			if (posX<780 && posX>700 && posY<345 && posY>305)
+			   intInput=5;
+			if (posX<880 && posX>800 && posY<345 && posY>305)
+			   intInput=6;
+			if (posX<980 && posX>900 && posY<345 && posY>305)
+			   intInput=7;
+
+			if (intInput !=0)      //intEffort can be changed only if intInput has been changed
+			{
+				int scaleX;
+				for (int i=0; i<9; i++)
+				{
+					scaleX = 700+i*35;
+					if (posX<scaleX+25 && posX>scaleX && posY<425 && posY>405)
+					   intEffort=i+1;
+				}
+			}
+
+			repaint();
+
+		}
+	}
+
+
+    public void mousePressed(MouseEvent e)  {}
+    public void mouseReleased(MouseEvent evt) {}
+    public void mouseEntered(MouseEvent evt) {}
+    public void mouseExited(MouseEvent evt) {}
+
+
+    //when mouseLister is used, sometimes the picture is redrawn many times, which ST was counted
+    //many times, making time count is not accurate. I have put timing code outside paint() method.
+
+    int ind=0;
+    public void keyPressed(KeyEvent e)
+    {
+		int i= e.getKeyCode();
+		//System.out.println("i=  "+i+"\n");
+		if (i == 32 && keyPressTimes<=1)   //VK_SPACE
+		{
+			if (breakTime == true)
+			{
+				t2 = (t1+2000)-System.currentTimeMillis();  //wait for 2 mins = 120,000 millseconds
+
+
+				if (t2 < 0)
+					breakTime = false;
+
+
+				repaint();
+			}
+			else if (breakTime1 == true)
+			{
+				t4 = (t3+2000)-System.currentTimeMillis();  //wait for 2 mins = 120,000 millseconds
+
+
+				if (t4 < 0)
+					breakTime1 = false;
+
+
+				repaint();
+
+			}
+			else
+			{
+				repaint();
+
+				keyPressTimes ++;
+				if (keyPressTimes ==1)
+				{
+					ST = System.currentTimeMillis();
+					// ***********  System.out.println("ST   " + ST +  "\n");
+				}
+				else if (keyPressTimes ==2)
+				{
+					ET = System.currentTimeMillis();
+					// ***********  System.out.println("ET   " + ET +  "\n");
+				}
+			}
+		}
+		else if (i == 32 && keyPressTimes==2 && intInput !=0 && intEffort !=0)   //VK_SPACE
+		{
+
+			Graph graph = graphs.get(currentGraphIndex);
+
+			CrossAngle.computeAngleForceElements(graph);
+
+
+			strDetail += "\n" + subjectID +" " + currentGraphIndex +" "+ sid +" " + eid + " " + path.getPath() +" "+ path.getLength() +" ";
+
+
+			strDetail += graph.getPathCrossNo(path) +" "+ graph.getPathAngleMean(path) + " " + graph.getPathMinAng(path) +" ";
+
+			strDetail += graph.getPathContinuity(path) + " " + graph.getPathGeodesic(path) + " ";
+
+			strDetail += intInput +" ";
+
+			strDetail += (ET-ST) +" ";
+
+			strDetail += intEffort +" ";
+
+
+
+			if (intInput == paths.get(currentGraphIndex).getLength())   //answer is correct
+			{
+				strDetail += 1;
+
+		    }
+		    else
+		    {
+
+				strDetail += 0;
+
+			    //System.out.println("\007\007");
+			    //System.out.flush();
+
+			    java.awt.Toolkit.getDefaultToolkit().beep();
+				java.awt.Toolkit.getDefaultToolkit().beep();
+
+				/*
+
+				int temp=currentGraphIndex;
+
+				if (ind < imgIndex.length-1)
+				{
+					for (int j=ind; j<imgIndex.length-1; j++)
+					{
+						imgIndex[j]=imgIndex[j+1];
+					}
+					imgIndex[imgIndex.length-1]=temp;
+				}
+
+				ind--;
+				*/
+		    }
+
+            if (ind < imgIndex.length-1)
+			   currentGraphIndex = imgIndex[++ind];
+			else
+			{
+
+				write();
+				System.exit(0);
+			}
+
+			intInput=0;
+			intEffort=0;
+
+			keyPressTimes =0;
+			/*
+
+			if (ind == numberOfImage/2)
+				breakTime = true;
+			if (ind == (3*numberOfImage)/4)
+				breakTime1 = true;
+
+				*/
+			repaint();
+
+		}
+	}
+
+    public void keyReleased(KeyEvent e) {}
+    public void keyTyped(KeyEvent e) {}
+
+
+	public void getOrder1()  //determine a random order for graphs
+	{
+
+
+  		 ArrayList<Integer> numbers = new ArrayList<Integer>();
+
+  		 for (int i=0; i<numberOfImage; i++)
+  		 {
+			 numbers.add(new Integer(i));
+		 }
+
+		 for (int i=0; i<numberOfImage; i++)
+		 {
+
+		    Random random = new Random();
+
+		    int pick = random.nextInt(numbers.size());  //a int [0, numberOfImage)
+
+			imgIndex[i] = numbers.get(pick);
+
+		    numbers.remove(pick);   //Removes the element at the specified position in this list
+
+		 }
+
+		 //**********print the order******
+
+ 		 String strImg="img Index=  ";
+ 		 for (int i=0; i<imgIndex.length; i++)
+ 		 {
+ 		     strImg += imgIndex[i]+"  ";
+	     }
+
+	     System.out.println(strImg+"\n");
+
+	}
+
+    public void write()
+	{
+         //append to a file
+		 try {
+				BufferedWriter out = new BufferedWriter(new FileWriter("practiceAnswer"+".txt", true));
+				out.write(strDetail);
+				out.close();
+
+		 } catch (IOException e) {
+			 System.out.println(e);
+		 }
+
+	}
+
+
+	public ArrayList<Graph> read(String fileName)
+	{
+
+		ArrayList<Graph> gs = new ArrayList<Graph>();
+
+		try
+		{
+				BufferedReader in = new BufferedReader(new FileReader(fileName));
+				String str;
+
+
+				Graph g = new Graph();
+
+				boolean empty = true;
+
+				while ((str = in.readLine()) != null)
+				{
+					str = str.trim();
+					if (str.length() ==0 || str.indexOf("===") != -1)
+					   continue;
+					if (str.indexOf("Count") != -1)
+					{
+						if (!empty)
+							gs.add(g);
+
+						System.out.println("id===" + gs.size());
+
+						empty = false;
+
+						g = new Graph();
+
+						continue;
+					}
+
+
+					Scanner sLine = new Scanner(str);
+
+					int vId = sLine.nextInt();
+
+					double x = sLine.nextDouble();
+					double y = sLine.nextDouble();
+
+					Vertex v = new Vertex(vId, x, y);
+
+
+					while (sLine.hasNextInt())
+					{
+						v.addAdjacentNode(sLine.nextInt());
+					}
+
+					g.addVertex(v);
+
+				}
+
+				gs.add(g);
+
+				in.close();
+				System.out.println("================" + gs.size()+"======================\n");
+		}
+		catch (IOException e)
+		{
+			 e.printStackTrace();
+		}
+
+
+		return gs;
+	}
+
+
+
+	public static void main(String[] args)
+	{
+		/*
+
+		JFrame fr = new ComplexDiff();
+		fr.setSize(1024,768);
+
+		fr.show();  */
+
+    WindowUtilities.openInJFrame(new Practice(), 1200, 768);
+
+
+	}
+
+}
+
